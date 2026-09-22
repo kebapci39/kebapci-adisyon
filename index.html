@@ -1,0 +1,742 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+    <meta charset="UTF-8">
+    <title>Butik Adisyon & Masa Takip (Garanti Başlatma)</title>
+    <style>
+        body { font-family: Arial, sans-serif; background: #f4f4f4; margin: 0; padding: 20px; color: #333; }
+        header { display: flex; justify-content: space-between; align-items: center; background: #222; color: white; padding: 15px 20px; border-radius: 8px; margin-bottom: 20px; flex-wrap: wrap; gap: 10px; }
+        .brand-container { display: flex; align-items: center; gap: 15px; flex-wrap: wrap; }
+        .logo-box { width: 45px; height: 45px; border-radius: 50%; background: #444; display: flex; justify-content: center; align-items: center; overflow: hidden; border: 2px solid #fff; cursor: pointer; position: relative; }
+        .logo-box img { width: 100%; height: 100%; object-fit: cover; }
+        .logo-box span { font-size: 10px; color: #aaa; text-align: center; line-height: 1.1; }
+        h1 { margin: 0; font-size: 20px; }
+        .btn { padding: 8px 12px; background: #007bff; color: white; border: none; border-radius: 5px; cursor: pointer; font-size: 14px; }
+        .btn:hover { background: #0056b3; }
+        .btn-success { background: #28a745; }
+        .btn-success:hover { background: #218838; }
+        .btn-danger { background: #dc3545; }
+        .btn-danger:hover { background: #c82333; }
+        .btn-warning { background: #ffc107; color: #000; }
+        .btn-warning:hover { background: #e0a800; }
+        .btn-info { background: #17a2b8; color: white; }
+        .btn-info:hover { background: #138496; }
+        .btn-secondary { background: #6c757d; color: white; }
+        .btn-secondary:hover { background: #5a6268; }
+        
+        .main-container { display: flex; gap: 20px; flex-wrap: wrap; }
+        .tables-section { flex: 2; min-width: 300px; }
+        .tables-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(130px, 1fr)); gap: 15px; }
+        .table-card { background: white; padding: 20px; border-radius: 8px; border: 2px solid #ccc; cursor: pointer; text-align: center; font-size: 18px; font-weight: bold; position: relative; }
+        .table-card.occupied { border-color: #dc3545; background: #fff8f8; }
+        .table-card:hover { background: #e9e9e9; }
+        .table-total { font-size: 14px; color: #dc3545; margin-top: 5px; }
+        
+        .panel { background: white; padding: 20px; border-radius: 8px; border: 2px solid #ccc; flex: 1; min-width: 280px; display: flex; flex-direction: column; justify-content: space-between; }
+        .cart-item { display: flex; flex-direction: column; border-bottom: 1px solid #ddd; padding: 8px 0; font-size: 14px; }
+        .cart-row { display: flex; justify-content: space-between; align-items: center; }
+        .note-input { margin-top: 4px; padding: 4px; font-size: 12px; width: 95%; border: 1px solid #ccc; border-radius: 3px; }
+        
+        .modal { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.5); justify-content: center; align-items: center; z-index: 1000; }
+        .modal-content { background: white; padding: 20px; border-radius: 8px; width: 90%; max-width: 500px; max-height: 80vh; overflow-y: auto; }
+        .menu-item-btn { display: flex; justify-content: space-between; width: 100%; padding: 10px; margin-bottom: 8px; background: #f8f9fa; border: 1px solid #ddd; border-radius: 5px; cursor: pointer; text-align: left; }
+        .menu-item-btn:hover { background: #e2e6ea; }
+        
+        .log-item-row { background: #f8f9fa; padding: 10px; margin-bottom: 8px; border-radius: 5px; border-left: 4px solid #17a2b8; display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 8px; }
+        
+        #sync-status { font-size: 11px; padding: 4px 8px; border-radius: 4px; background: #ffc107; color: #000; font-weight: bold; }
+    </style>
+
+    <!-- Firebase SDK -->
+    <script src="https://www.gstatic.com/firebasejs/9.22.2/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.22.2/firebase-database-compat.js"></script>
+</head>
+<body>
+
+    <header>
+        <div class="brand-container">
+            <div class="logo-box" onclick="openLogoModal()" title="Logoyu Değiştir / Yönet">
+                <img id="header-logo-img" src="" alt="Logo" style="display:none;">
+                <span id="header-logo-text">Logo Ekle</span>
+            </div>
+            <div>
+                <h1>🍽️ Masa & Adisyon</h1>
+                <span id="sync-status">Bağlanıyor...</span>
+            </div>
+        </div>
+        <div style="display: flex; gap: 8px; flex-wrap: wrap;">
+            <button class="btn btn-secondary" onclick="openLogsModal()">📋 Hareketler</button>
+            <button class="btn btn-info" onclick="openReportModal()">📊 Raporlar</button>
+            <button class="btn btn-success" onclick="openMenuModal()">⚙️ Menü</button>
+            <button class="btn" onclick="openTableModal()">🪑 Masalar</button>
+        </div>
+    </header>
+
+    <div class="main-container">
+        <div class="tables-section">
+            <h3>Masalar</h3>
+            <div class="tables-grid" id="table-list"></div>
+        </div>
+
+        <div class="panel">
+            <div>
+                <h3 id="selected-table-title">Masa Seçilmedi</h3>
+                <div id="cart-content">Lütfen soldan bir masa seçin.</div>
+            </div>
+            <div id="cart-footer" style="display:none; margin-top: 15px; border-top: 1px solid #ccc; padding-top: 10px;">
+                <div style="display: flex; justify-content: space-between; font-weight: bold; margin-bottom: 10px;">
+                    <span>Toplam:</span>
+                    <span id="cart-total" style="color: #28a745;">0 TL</span>
+                </div>
+                <div style="display: flex; gap: 5px;">
+                    <button class="btn" style="flex:1;" onclick="printOrder()">🖨️ Yazdır</button>
+                    <button class="btn btn-danger" style="flex:1;" onclick="closeTableAccount()">🛑 Hesabı Kapat</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modallar -->
+    <div class="modal" id="logo-modal">
+        <div class="modal-content" style="max-width: 400px; text-align: center;">
+            <h3>İşletme Logosu Yönetimi</h3>
+            <div style="margin: 20px 0;">
+                <div id="logo-preview-container" style="margin-bottom: 15px;">
+                    <img id="modal-logo-preview" src="" alt="Önizleme" style="max-width: 100px; max-height: 100px; border-radius: 50%; border: 2px solid #ddd; display: none; object-fit: cover; margin: 0 auto;">
+                    <p id="modal-logo-none" style="color: #777; font-size: 13px;">Şu an yüklü bir logo yok.</p>
+                </div>
+                <label style="display: block; margin-bottom: 8px; font-weight: bold; font-size: 14px;">Yeni Logo Dosyası Seç:</label>
+                <input type="file" id="logo-file-input" accept="image/*" style="width: 100%; padding: 6px; box-sizing: border-box; margin-bottom: 15px;">
+            </div>
+            <div style="display: flex; gap: 8px; flex-wrap: wrap;">
+                <button class="btn btn-success" onclick="uploadLogo()" style="flex:1;">Yükle / Kaydet</button>
+                <button class="btn btn-danger" id="remove-logo-btn" onclick="removeLogo()" style="flex:1; display:none;">Logoyu Sil</button>
+            </div>
+            <button class="btn btn-secondary" onclick="closeLogoModal()" style="width: 100%; margin-top: 10px;">Kapat</button>
+        </div>
+    </div>
+
+    <div class="modal" id="order-modal">
+        <div class="modal-content">
+            <h3 id="modal-title">Ürün Seç</h3>
+            <div id="menu-list-container" style="margin: 15px 0;"></div>
+            <button class="btn btn-danger" onclick="closeOrderModal()" style="width: 100%;">Kapat</button>
+        </div>
+    </div>
+
+    <div class="modal" id="logs-modal">
+        <div class="modal-content" style="max-width: 600px;">
+            <h3>📋 Kapatılan Adisyon Hareketleri</h3>
+            <div id="logs-content" style="max-height: 300px; overflow-y: auto; margin: 15px 0; border: 1px solid #ddd; padding: 8px; border-radius: 5px;"></div>
+            <button class="btn btn-danger" onclick="closeLogsModal()" style="width: 100%;">Kapat</button>
+        </div>
+    </div>
+
+    <div class="modal" id="edit-log-modal">
+        <div class="modal-content" style="max-width: 450px;">
+            <h3 id="edit-log-title">Adisyon Kalemleri</h3>
+            <div id="edit-log-items" style="max-height: 220px; overflow-y: auto; margin: 15px 0; border: 1px solid #ddd; padding: 8px; border-radius: 5px;"></div>
+            <div style="display: flex; justify-content: space-between; font-weight: bold; margin-bottom: 15px; font-size: 15px;">
+                <span>Güncel Tutar:</span>
+                <span id="edit-log-total" style="color: #28a745;">0 TL</span>
+            </div>
+            <button class="btn btn-secondary" onclick="closeEditLogModal()" style="width: 100%;">Geri Dön</button>
+        </div>
+    </div>
+
+    <div class="modal" id="report-modal">
+        <div class="modal-content" style="max-width: 550px;">
+            <h3>📊 Gün Sonu & Aylık Rapor Arşivi</h3>
+            <div style="margin: 15px 0; background: #e9ecef; padding: 15px; border-radius: 6px; display: flex; justify-content: space-between; font-size: 18px; font-weight: bold; flex-wrap: wrap; gap: 5px;">
+                <span>BUGÜNKÜ KASA CİROSU:</span>
+                <span id="report-grand-total" style="color: #28a745;">0 TL</span>
+            </div>
+            <h4>Bugünkü Masa Dağılımı:</h4>
+            <div id="report-content" style="max-height: 150px; overflow-y: auto; margin-bottom: 15px; border: 1px solid #ddd; padding: 10px; border-radius: 5px;"></div>
+            <h4 style="margin-top: 15px; border-top: 2px solid #ddd; padding-top: 10px;">📅 Geçmiş Günler (Aylık Arşiv):</h4>
+            <div id="monthly-archive-content" style="max-height: 150px; overflow-y: auto; margin-bottom: 15px; border: 1px solid #ddd; padding: 10px; border-radius: 5px; background: #fafafa;"></div>
+            <div style="display: flex; gap: 10px; flex-wrap: wrap;">
+                <button class="btn btn-success" onclick="archiveAndStartNewDay()" style="flex: 1; min-width: 200px;">💾 Günü Bitir & Yeni Gün Başlat</button>
+                <button class="btn btn-danger" onclick="closeReportModal()" style="flex: 1; min-width: 100px;">Kapat</button>
+            </div>
+        </div>
+    </div>
+
+    <div class="modal" id="menu-modal">
+        <div class="modal-content">
+            <h3>Menü ve Fiyat Yönetimi</h3>
+            <div style="margin: 10px 0; display: flex; gap: 5px; flex-wrap: wrap;">
+                <input type="text" id="new-name" placeholder="Ürün Adı" style="flex:2; min-width: 150px; padding:6px;">
+                <input type="number" id="new-price" placeholder="Fiyat" style="flex:1; min-width: 80px; padding:6px;">
+                <button class="btn btn-success" id="menu-save-btn" onclick="saveMenuItem()" style="flex:1; min-width: 70px;">Ekle</button>
+            </div>
+            <div id="menu-manage-list" style="max-height: 250px; overflow-y: auto; margin-bottom: 15px;"></div>
+            <button class="btn btn-danger" onclick="closeMenuModal()" style="width: 100%;">Kapat</button>
+        </div>
+    </div>
+
+    <div class="modal" id="table-modal">
+        <div class="modal-content">
+            <h3>Masa Sayısını Düzenle</h3>
+            <div style="margin: 15px 0;">
+                <label>Toplam Masa:</label>
+                <input type="number" id="table-count-input" style="width: 100%; padding: 8px; margin-top: 5px; box-sizing: border-box;" min="1" max="50">
+            </div>
+            <button class="btn btn-success" onclick="saveTableCount()" style="width: 100%; margin-bottom: 5px;">Kaydet</button>
+            <button class="btn btn-danger" onclick="closeTableModal()" style="width: 100%;">Kapat</button>
+        </div>
+    </div>
+
+    <script>
+        const firebaseConfig = {
+            databaseURL: "https://butik-adisyon-default-rtdb.europe-west1.firebasedatabase.app"
+        };
+        firebase.initializeApp(firebaseConfig);
+        const dbRef = firebase.database().ref('isletme_verileri');
+
+        let tableCount = 6;
+        let menu = [
+            { id: 1, name: 'Adana Kebap', price: 280 },
+            { id: 2, name: 'Urfa Kebap', price: 280 },
+            { id: 3, name: 'Tavuk Şiş', price: 220 },
+            { id: 4, name: 'Ayran', price: 25 },
+            { id: 5, name: 'Şalgam', price: 30 }
+        ];
+        let orders = {};
+        let dailyLog = {};
+        let monthlyArchive = {};
+        let businessLogo = "";
+
+        let activeTable = null;
+        let activeLogTableIndex = null;
+        let activeLogItemIndex = null;
+        let editingIndex = null;
+        let cloudConnected = false;
+
+        // Bağlantı Zaman Aşımı Koruması (2 saniye içinde buluttan veri gelmezse yerel modda direkt açılır)
+        setTimeout(() => {
+            if (!cloudConnected) {
+                const statusEl = document.getElementById('sync-status');
+                if (statusEl) {
+                    statusEl.innerText = "⚡ Yerel Mod / Çevrimdışı";
+                    statusEl.style.background = "#17a2b8";
+                    statusEl.style.color = "#fff";
+                }
+                renderTables();
+                updateHeaderLogoUI();
+            }
+        }, 2000);
+
+        dbRef.on('value', (snapshot) => {
+            cloudConnected = true;
+            const data = snapshot.val();
+            if (data) {
+                if (data.tableCount !== undefined) tableCount = data.tableCount;
+                if (data.menu) menu = data.menu;
+                orders = data.orders || {};
+                dailyLog = data.dailyLog || {};
+                monthlyArchive = data.monthlyArchive || {};
+                businessLogo = data.businessLogo || "";
+            }
+            
+            const statusEl = document.getElementById('sync-status');
+            if (statusEl) {
+                statusEl.innerText = "☁️ Bulut Senkronize";
+                statusEl.style.background = "#28a745";
+                statusEl.style.color = "#fff";
+            }
+
+            renderTables();
+            updateHeaderLogoUI();
+            if (activeTable !== null) {
+                renderCart();
+            }
+        }, (error) => {
+            console.error("Firebase bağlantı hatası:", error);
+            const statusEl = document.getElementById('sync-status');
+            if (statusEl) {
+                statusEl.innerText = "⚠️ Çevrimdışı Çalışıyor";
+                statusEl.style.background = "#dc3545";
+                statusEl.style.color = "#fff";
+            }
+            renderTables();
+            updateHeaderLogoUI();
+        });
+
+        function saveDataToCloud() {
+            dbRef.set({
+                tableCount: tableCount,
+                menu: menu,
+                orders: orders,
+                dailyLog: dailyLog,
+                monthlyArchive: monthlyArchive,
+                businessLogo: businessLogo
+            }).catch(err => {
+                console.log("Buluta yazılamadı (yerel saklanıyor):", err);
+            });
+        }
+
+        function openLogoModal() {
+            const previewImg = document.getElementById('modal-logo-preview');
+            const noneText = document.getElementById('modal-logo-none');
+            const removeBtn = document.getElementById('remove-logo-btn');
+            
+            if (businessLogo) {
+                previewImg.src = businessLogo;
+                previewImg.style.display = 'block';
+                noneText.style.display = 'none';
+                removeBtn.style.display = 'inline-block';
+            } else {
+                previewImg.style.display = 'none';
+                noneText.style.display = 'block';
+                removeBtn.style.display = 'none';
+            }
+            document.getElementById('logo-file-input').value = '';
+            document.getElementById('logo-modal').style.display = 'flex';
+        }
+
+        function closeLogoModal() {
+            document.getElementById('logo-modal').style.display = 'none';
+        }
+
+        function uploadLogo() {
+            const fileInput = document.getElementById('logo-file-input');
+            if (fileInput.files && fileInput.files[0]) {
+                const reader = new FileReader();
+                reader.onload = function (e) {
+                    businessLogo = e.target.result;
+                    saveDataToCloud();
+                    closeLogoModal();
+                    alert('Logo başarıyla güncellendi.');
+                };
+                reader.readAsDataURL(fileInput.files[0]);
+            } else {
+                alert('Lütfen yüklenecek bir görsel seçin.');
+            }
+        }
+
+        function removeLogo() {
+            if (confirm('İşletme logosunu silmek istediğinize emin misiniz?')) {
+                businessLogo = "";
+                saveDataToCloud();
+                closeLogoModal();
+                alert('Logo kaldırıldı.');
+            }
+        }
+
+        function updateHeaderLogoUI() {
+            const headerImg = document.getElementById('header-logo-img');
+            const headerText = document.getElementById('header-logo-text');
+            
+            if (businessLogo) {
+                headerImg.src = businessLogo;
+                headerImg.style.display = 'block';
+                headerText.style.display = 'none';
+            } else {
+                headerImg.style.display = 'none';
+                headerText.style.display = 'block';
+            }
+        }
+
+        function renderTables() {
+            const list = document.getElementById('table-list');
+            if (!list) return;
+            list.innerHTML = '';
+            for (let i = 1; i <= tableCount; i++) {
+                const card = document.createElement('div');
+                const tOrders = orders[i] || [];
+                const isOccupied = tOrders.length > 0;
+                const total = tOrders.reduce((sum, item) => sum + (item.price * item.qty), 0);
+
+                card.className = 'table-card' + (isOccupied ? ' occupied' : '');
+                card.innerHTML = `Masa ${i} <div class="table-total">${isOccupied ? total + ' TL (' + tOrders.length + ' çeşit)' : 'Boş'}</div>`;
+                card.onclick = () => selectTable(i);
+                list.appendChild(card);
+            }
+        }
+
+        function selectTable(id) {
+            activeTable = id;
+            document.getElementById('selected-table-title').innerText = `Masa ${id} Adisyonu`;
+            document.getElementById('cart-footer').style.display = 'block';
+            renderCart();
+            openOrderModal();
+        }
+
+        function renderCart() {
+            const container = document.getElementById('cart-content');
+            if (!container) return;
+            const tOrders = orders[activeTable] || [];
+            
+            if (tOrders.length === 0) {
+                container.innerHTML = '<p>Bu masada henüz sipariş yok.</p>';
+                document.getElementById('cart-total').innerText = '0 TL';
+                return;
+            }
+
+            let html = '';
+            let total = 0;
+            tOrders.forEach((item, index) => {
+                total += item.price * item.qty;
+                html += `
+                    <div class="cart-item">
+                        <div class="cart-row">
+                            <span><b>${item.name}</b> x${item.qty}</span>
+                            <span>${item.price * item.qty} TL <button onclick="removeItem(${index})" style="color:red; border:none; background:none; cursor:pointer; font-weight:bold;">Sil</button></span>
+                        </div>
+                        <input type="text" class="note-input" placeholder="Not (örn: acılı, pilavsız)..." value="${item.note || ''}" oninput="updateNote(${index}, this.value)">
+                    </div>
+                `;
+            });
+            container.innerHTML = html;
+            document.getElementById('cart-total').innerText = total + ' TL';
+        }
+
+        function openOrderModal() {
+            const container = document.getElementById('menu-list-container');
+            document.getElementById('modal-title').innerText = `Masa ${activeTable} - Ürün Seçimi`;
+            let html = '';
+            menu.forEach(item => {
+                html += `<button class="menu-item-btn" onclick="addToOrder(${item.id})"><span>${item.name}</span> <b>${item.price} TL</b></button>`;
+            });
+            container.innerHTML = html;
+            document.getElementById('order-modal').style.display = 'flex';
+        }
+
+        function closeOrderModal() {
+            document.getElementById('order-modal').style.display = 'none';
+            renderTables();
+        }
+
+        function addToOrder(itemId) {
+            const item = menu.find(i => i.id === itemId);
+            if (!item) return;
+            if (!orders[activeTable]) orders[activeTable] = [];
+            
+            const existing = orders[activeTable].find(i => i.id === itemId && !i.note);
+            if (existing) {
+                existing.qty += 1;
+            } else {
+                orders[activeTable].push({ id: item.id, name: item.name, price: item.price, qty: 1, note: '' });
+            }
+            saveDataToCloud();
+            renderCart();
+        }
+
+        function removeItem(index) {
+            if (!orders[activeTable]) return;
+            orders[activeTable].splice(index, 1);
+            if (orders[activeTable].length === 0) delete orders[activeTable];
+            saveDataToCloud();
+            renderCart();
+            renderTables();
+        }
+
+        function updateNote(index, val) {
+            if (orders[activeTable] && orders[activeTable][index]) {
+                orders[activeTable][index].note = val;
+                saveDataToCloud();
+            }
+        }
+
+        function printOrder() {
+            const tOrders = orders[activeTable] || [];
+            if (tOrders.length === 0) return;
+
+            let itemsHtml = '';
+            let total = 0;
+            tOrders.forEach(item => {
+                total += item.price * item.qty;
+                itemsHtml += `
+                    <div style="display:flex; justify-content:space-between; margin-bottom:4px;">
+                        <span>${item.name} x${item.qty}</span>
+                        <span>${item.price * item.qty} TL</span>
+                    </div>`;
+                if (item.note) {
+                    itemsHtml += `<div style="font-size:11px; font-style:italic; margin-left:10px; margin-bottom:4px;">Not: ${item.note}</div>`;
+                }
+            });
+
+            let logoPrintHtml = businessLogo ? `<div class="center" style="margin-bottom:8px;"><img src="${businessLogo}" style="max-width:80px; max-height:80px; object-fit:contain;"></div>` : '';
+
+            let printWindow = window.open('', '_blank', 'width=300,height=600');
+            if (!printWindow) {
+                alert("Lütfen tarayıcınızın açılır pencere engelleyicisini kapatın.");
+                return;
+            }
+            printWindow.document.write(`
+                <html>
+                <head>
+                    <title>Adisyon - Masa ${activeTable}</title>
+                    <style>
+                        body { font-family: monospace; font-size: 13px; padding: 10px; margin: 0; color: #000; }
+                        .center { text-align: center; }
+                        .line { border-top: 1px dashed #000; margin: 8px 0; }
+                    </style>
+                </head>
+                <body>
+                    ${logoPrintHtml}
+                    <div class="center" style="font-weight: bold; font-size: 15px;">KEBAB & LEZZET SALONU</div>
+                    <div class="center" style="font-size: 11px;">Tel: 0532 472 47 72</div>
+                    <div class="line"></div>
+                    <div>Masa: ${activeTable}</div>
+                    <div>Tarih: ${new Date().toLocaleString('tr-TR')}</div>
+                    <div class="line"></div>
+                    <div>${itemsHtml}</div>
+                    <div class="line"></div>
+                    <div style="text-align: right; font-weight: bold; font-size: 14px;">GENEL TOPLAM: ${total} TL</div>
+                    <div class="center" style="margin-top: 15px; font-size: 11px;">Afiyet Olsun!</div>
+                </body>
+                </html>
+            `);
+            printWindow.document.close();
+            printWindow.focus();
+            setTimeout(() => {
+                printWindow.print();
+                printWindow.close();
+            }, 250);
+        }
+
+        function closeTableAccount() {
+            const tOrders = orders[activeTable] || [];
+            if (tOrders.length === 0) return;
+
+            if (confirm(`Masa ${activeTable} hesabı kapatılacak ve gün raporuna eklenecek. Emin misiniz?`)) {
+                const total = tOrders.reduce((sum, item) => sum + (item.price * item.qty), 0);
+                
+                if (!dailyLog[activeTable]) dailyLog[activeTable] = [];
+                dailyLog[activeTable].push({
+                    time: new Date().toLocaleTimeString('tr-TR', { hour: '2-digit', minute: '2-digit' }),
+                    total: total,
+                    items: JSON.parse(JSON.stringify(tOrders))
+                });
+
+                delete orders[activeTable];
+                saveDataToCloud();
+                
+                document.getElementById('cart-footer').style.display = 'none';
+                document.getElementById('selected-table-title').innerText = "Masa Seçilmedi";
+                document.getElementById('cart-content').innerHTML = "Lütfen soldan bir masa seçin.";
+                activeTable = null;
+                renderTables();
+                alert('Hesap başarıyla kapatıldı.');
+            }
+        }
+
+        function openLogsModal() {
+            const container = document.getElementById('logs-content');
+            let html = '';
+            for (let i = 1; i <= tableCount; i++) {
+                const logs = dailyLog[i] || [];
+                logs.forEach((log, logIdx) => {
+                    html += `
+                        <div class="log-item-row">
+                            <div>
+                                <b>Masa ${i}</b> - <span style="color:#555;">${log.time}</span><br>
+                                <span style="color:#d9534f; font-weight:bold;">${log.total} TL</span> (${log.items.length} çeşit)
+                            </div>
+                            <button class="btn btn-warning" style="padding:4px 10px; font-size:12px;" onclick="openEditLogModal(${i},${logIdx})">İncele / Düzenle ✍️</button>
+                        </div>`;
+                });
+            }
+            if (html === '') html = '<p style="text-align:center; color:#777;">Bugün henüz kapatılan adisyon hareketi yok.</p>';
+            container.innerHTML = html;
+            document.getElementById('logs-modal').style.display = 'flex';
+        }
+
+        function closeLogsModal() { document.getElementById('logs-modal').style.display = 'none'; }
+
+        function openEditLogModal(tableNum, logIndex) {
+            activeLogTableIndex = tableNum;
+            activeLogItemIndex = logIndex;
+            const log = dailyLog[tableNum][logIndex];
+            document.getElementById('edit-log-title').innerText = `Masa ${tableNum} (${log.time}) Adisyon Detayı`;
+            renderEditLogItems();
+            document.getElementById('edit-log-modal').style.display = 'flex';
+        }
+
+        function renderEditLogItems() {
+            const log = dailyLog[activeLogTableIndex][activeLogItemIndex];
+            const container = document.getElementById('edit-log-items');
+            let html = '';
+            let total = 0;
+            log.items.forEach((item, itemIdx) => {
+                total += item.price * item.qty;
+                html += `
+                    <div style="display: flex; justify-content: space-between; align-items: center; padding: 6px 0; border-bottom: 1px solid #eee; font-size: 14px;">
+                        <span><b>${item.name}</b> x ${item.qty} (${item.price * item.qty} TL)</span>
+                        <button class="btn btn-danger" style="padding: 2px 6px; font-size: 11px;" onclick="removeLogItem(${itemIdx})">Sil</button>
+                    </div>`;
+            });
+            container.innerHTML = html;
+            document.getElementById('edit-log-total').innerText = total + ' TL';
+            log.total = total;
+            saveDataToCloud();
+        }
+
+        function removeLogItem(itemIndex) {
+            const log = dailyLog[activeLogTableIndex][activeLogItemIndex];
+            log.items.splice(itemIndex, 1);
+            if (log.items.length === 0) {
+                dailyLog[activeLogTableIndex].splice(activeLogItemIndex, 1);
+                if (dailyLog[activeLogTableIndex].length === 0) delete dailyLog[activeLogTableIndex];
+                saveDataToCloud();
+                closeEditLogModal();
+                openLogsModal();
+                return;
+            }
+            renderEditLogItems();
+            openLogsModal();
+        }
+
+        function closeEditLogModal() {
+            document.getElementById('edit-log-modal').style.display = 'none';
+            openLogsModal(); 
+        }
+
+        function openReportModal() {
+            const container = document.getElementById('report-content');
+            let grandTotal = 0;
+            let html = '';
+            for (let i = 1; i <= tableCount; i++) {
+                const logs = dailyLog[i] || [];
+                if (logs.length > 0) {
+                    let tableSum = logs.reduce((s, l) => s + l.total, 0);
+                    grandTotal += tableSum;
+                    html += `
+                        <div style="display: flex; justify-content: space-between; padding: 6px 0; border-bottom: 1px dashed #ccc; font-size: 14px;">
+                            <span><b>Masa ${i}</b> (${logs.length} Adisyon)</span>
+                            <span style="color: #d9534f; font-weight: bold;">${tableSum} TL</span>
+                        </div>`;
+                }
+            }
+            if (html === '') html = '<p style="text-align:center; color:#777; font-size:13px;">Bugün henüz ciro oluşmadı.</p>';
+            container.innerHTML = html;
+            document.getElementById('report-grand-total').innerText = grandTotal + ' TL';
+
+            const archiveContainer = document.getElementById('monthly-archive-content');
+            let archiveHtml = '';
+            const sortedDates = Object.keys(monthlyArchive).sort().reverse();
+            sortedDates.forEach(dateStr => {
+                let dayTotal = monthlyArchive[dateStr];
+                archiveHtml += `
+                    <div style="display: flex; justify-content: space-between; padding: 6px 0; border-bottom: 1px solid #ddd; font-size: 14px;">
+                        <span>📅 <b>${dateStr}</b></span>
+                        <span style="color: #28a745; font-weight: bold;">${dayTotal} TL</span>
+                    </div>`;
+            });
+            if (archiveHtml === '') archiveHtml = '<p style="text-align:center; color:#777; font-size:13px;">Henüz geçmiş gün arşivi yok.</p>';
+            archiveContainer.innerHTML = archiveHtml;
+
+            document.getElementById('report-modal').style.display = 'flex';
+        }
+
+        function closeReportModal() { document.getElementById('report-modal').style.display = 'none'; }
+
+        function archiveAndStartNewDay() {
+            let todayTotal = 0;
+            for (let i = 1; i <= tableCount; i++) {
+                const logs = dailyLog[i] || [];
+                if (logs.length > 0) todayTotal += logs.reduce((s, l) => s + l.total, 0);
+            }
+            if (confirm(`Bugünkü toplam ${todayTotal} TL ciro arşive kaydedilecek ve gün sıfırlanacak. Emin misiniz?`)) {
+                const todayKey = new Date().toISOString().split('T')[0];
+                monthlyArchive[todayKey] = (monthlyArchive[todayKey] || 0) + todayTotal;
+                dailyLog = {};
+                saveDataToCloud();
+                closeReportModal();
+                renderTables();
+                alert('Yeni gün başlatıldı!');
+            }
+        }
+
+        function openMenuModal() {
+            editingIndex = null;
+            document.getElementById('new-name').value = '';
+            document.getElementById('new-price').value = '';
+            document.getElementById('menu-save-btn').innerText = 'Ekle';
+            renderMenuManageList();
+            document.getElementById('menu-modal').style.display = 'flex';
+        }
+        function closeMenuModal() { document.getElementById('menu-modal').style.display = 'none'; }
+        
+        function renderMenuManageList() {
+            const container = document.getElementById('menu-manage-list');
+            let html = '';
+            menu.forEach((item, index) => {
+                html += `
+                    <div style="display:flex; justify-content:space-between; align-items:center; padding:6px; border-bottom:1px solid #eee; gap: 5px;">
+                        <span><b>${item.name}</b> - ${item.price} TL</span>
+                        <div style="display:flex; gap:4px;">
+                            <button class="btn" style="padding:2px 6px; font-size:12px;" onclick="moveMenu(${index}, -1)">⬆️</button>
+                            <button class="btn" style="padding:2px 6px; font-size:12px;" onclick="moveMenu(${index}, 1)">⬇️</button>
+                            <button class="btn btn-warning" style="padding:2px 6px; font-size:12px;" onclick="startEditMenu(${index})">Düzenle</button>
+                            <button class="btn btn-danger" style="padding:2px 6px; font-size:12px;" onclick="deleteMenu(${index})">Sil</button>
+                        </div>
+                    </div>`;
+            });
+            container.innerHTML = html;
+        }
+
+        function saveMenuItem() {
+            const inputName = document.getElementById('new-name').value;
+            const price = parseFloat(document.getElementById('new-price').value);
+            if (inputName && !isNaN(price)) {
+                if (editingIndex !== null) {
+                    menu[editingIndex].name = inputName;
+                    menu[editingIndex].price = price;
+                    editingIndex = null;
+                    document.getElementById('menu-save-btn').innerText = 'Ekle';
+                } else {
+                    menu.push({ id: Date.now(), name: inputName, price });
+                }
+                saveDataToCloud();
+                document.getElementById('new-name').value = '';
+                document.getElementById('new-price').value = '';
+                renderMenuManageList();
+            }
+        }
+
+        function startEditMenu(index) {
+            editingIndex = index;
+            document.getElementById('new-name').value = menu[index].name;
+            document.getElementById('new-price').value = menu[index].price;
+            document.getElementById('menu-save-btn').innerText = 'Güncelle';
+        }
+
+        function moveMenu(index, direction) {
+            const targetIndex = index + direction;
+            if (targetIndex < 0 || targetIndex >= menu.length) return;
+            const temp = menu[index];
+            menu[index] = menu[targetIndex];
+            menu[targetIndex] = temp;
+            saveDataToCloud();
+            renderMenuManageList();
+        }
+
+        function deleteMenu(index) {
+            menu.splice(index, 1);
+            saveDataToCloud();
+            renderMenuManageList();
+        }
+
+        function openTableModal() {
+            document.getElementById('table-count-input').value = tableCount;
+            document.getElementById('table-modal').style.display = 'flex';
+        }
+        function closeTableModal() { document.getElementById('table-modal').style.display = 'none'; }
+        
+        function saveTableCount() {
+            const count = parseInt(document.getElementById('table-count-input').value);
+            if (count > 0 && count <= 50) {
+                tableCount = count;
+                saveDataToCloud();
+                closeTableModal();
+                renderTables();
+            } else {
+                alert("Lütfen 1 ile 50 arasında bir sayı girin.");
+            }
+        }
+    </script>
+</body>
+</html>
