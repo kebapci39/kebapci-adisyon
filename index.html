@@ -173,17 +173,17 @@
     <script>
         // Firebase Bulut Bağlantısı
         const firebaseConfig = {
-            databaseURL: "https://butik-adisyon-default-rtdb.europe-west1.firebasedatabase.app"
+            databaseURL: "https://kebapci-9267b-default-rtdb.firebaseio.com"
         };
         firebase.initializeApp(firebaseConfig);
         const dbRef = firebase.database().ref('isletme_verileri');
         const connectedRef = firebase.database().ref('.info/connected');
 
-        let tableCount = 7;
-        let shopName = 'LEZZET KEBAP';
+        let tableCount = 8;
+        let shopName = 'KEBAPHANE';
         let shopSubtitle = 'Adisyon & Masa Takip Sistemi';
         let shopIcon = '🍢';
-        let waiters = ['Ahmet Usta', 'Mehmet', 'Ali'];
+        let waiters = ['MEHMET', 'GURBET', 'Ali'];
         let menu = [
             { id: 1, name: 'Adana Kebap', price: 280 },
             { id: 2, name: 'Urfa Kebap', price: 280 },
